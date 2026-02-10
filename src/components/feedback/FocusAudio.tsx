@@ -6,17 +6,26 @@ import { useFocusStore } from '@/store/focusStore';
 export function FocusAudio() {
     const { focusScore } = useFocusStore();
 
-    // Audio Context Refs
+    // Audio Context & Nodes
     const audioContextRef = useRef<AudioContext | null>(null);
-    const osc1Ref = useRef<OscillatorNode | null>(null);
-    const osc2Ref = useRef<OscillatorNode | null>(null);
-    const gainNodeRef = useRef<GainNode | null>(null);
-    const filterNodeRef = useRef<BiquadFilterNode | null>(null);
+
+    // Buffers
+    const backgroundBufferRef = useRef<AudioBuffer | null>(null);
+    const freesoundBufferRef = useRef<AudioBuffer | null>(null);
+
+    // Sources (Active loops)
+    const bgSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const fsSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+    // Gains
+    const bgGainRef = useRef<GainNode | null>(null);
+    const fsGainRef = useRef<GainNode | null>(null);
+
     const isInitializedRef = useRef(false);
 
-    // Initialize Audio Engine (User Interaction Required usually, but we try on mount/update)
+    // Load Audio Files
     useEffect(() => {
-        const initAudio = () => {
+        const loadAudio = async () => {
             if (isInitializedRef.current) return;
 
             try {
@@ -24,64 +33,73 @@ export function FocusAudio() {
                 const ctx = new AudioContext();
                 audioContextRef.current = ctx;
 
-                // Create Nodes
-                const osc1 = ctx.createOscillator();
-                const osc2 = ctx.createOscillator();
-                const gain = ctx.createGain();
-                const filter = ctx.createBiquadFilter();
+                // Create Master Gain for safety
+                const masterGain = ctx.createGain();
+                masterGain.connect(ctx.destination);
 
-                // Configuration : Deep Drone
-                // Oscillator 1: Very low Sine (Sub-bass)
-                osc1.type = 'sine';
-                osc1.frequency.value = 55; // A1
+                // Create Track Gains
+                const bgGain = ctx.createGain();
+                const fsGain = ctx.createGain();
 
-                // Oscillator 2: Low Triangle (Texture)
-                osc2.type = 'triangle';
-                osc2.frequency.value = 110; // A2
+                bgGain.gain.value = 0; // Start silent
+                fsGain.gain.value = 0; // Start silent
 
-                // Filter: Lowpass to make it "deep" and muffled
-                filter.type = 'lowpass';
-                filter.frequency.value = 200; // Start very muffled
+                bgGain.connect(masterGain);
+                fsGain.connect(masterGain);
 
-                // Gain: Start Silent
-                gain.gain.value = 0;
+                bgGainRef.current = bgGain;
+                fsGainRef.current = fsGain;
 
-                // Connections
-                // Osc1 -> Gain
-                // Osc2 -> Gain
-                // Gain -> Filter -> Destination
+                // Load Files
+                const loadFile = async (url: string) => {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    return await ctx.decodeAudioData(arrayBuffer);
+                };
 
-                osc1.connect(gain);
-                osc2.connect(gain);
-                gain.connect(filter);
-                filter.connect(ctx.destination);
+                console.log("Loading Audio Files...");
+                const [bgBuffer, fsBuffer] = await Promise.all([
+                    loadFile('/backgroundmusicforvideo-documentary-sad-sorrowful-music-479773.mp3'),
+                    loadFile('/freesound_community-sad-movie-sounds_01-49494.mp3')
+                ]);
+                console.log("Audio Files Loaded");
 
-                // Start Oscillators
-                osc1.start();
-                osc2.start();
+                backgroundBufferRef.current = bgBuffer;
+                freesoundBufferRef.current = fsBuffer;
 
-                osc1Ref.current = osc1;
-                osc2Ref.current = osc2;
-                gainNodeRef.current = gain;
-                filterNodeRef.current = filter;
                 isInitializedRef.current = true;
+
+                // Start loops immediately but muted
+                startLoops(ctx, bgBuffer, fsBuffer, bgGain, fsGain);
+
             } catch (e) {
                 console.error("Audio Init Failed", e);
             }
         };
 
-        // We need a user interaction to start audio usually.
-        // We can attach this to the first click on the page or just try.
-        // For now, let's try to init if not already.
-        // Ideally, we'd have a "Start Focus Mode" button.
-        // We will try to init on mount, but browser might block it until interaction.
-        // We can try resuming context on effects.
+        const startLoops = (ctx: AudioContext, bgBuf: AudioBuffer, fsBuf: AudioBuffer, bgGain: GainNode, fsGain: GainNode) => {
+            // Background Loop
+            const bgSource = ctx.createBufferSource();
+            bgSource.buffer = bgBuf;
+            bgSource.loop = true;
+            bgSource.connect(bgGain);
+            bgSource.start();
+            bgSourceRef.current = bgSource;
 
+            // Freesound Loop
+            const fsSource = ctx.createBufferSource();
+            fsSource.buffer = fsBuf;
+            fsSource.loop = true;
+            fsSource.connect(fsGain);
+            fsSource.start();
+            fsSourceRef.current = fsSource;
+        };
+
+        // Initialize on first interaction to allow audio
         const handleInteraction = () => {
             if (!audioContextRef.current) {
-                initAudio();
-            }
-            if (audioContextRef.current?.state === 'suspended') {
+                loadAudio();
+            } else if (audioContextRef.current.state === 'suspended') {
                 audioContextRef.current.resume();
             }
         };
@@ -92,41 +110,48 @@ export function FocusAudio() {
         return () => {
             window.removeEventListener('click', handleInteraction);
             window.removeEventListener('keydown', handleInteraction);
-            // Cleanup audio context if needed? keeping it alive is usually fine for SPA
+            // Cleanup sources logic if needed
+            if (bgSourceRef.current) bgSourceRef.current.stop();
+            if (fsSourceRef.current) fsSourceRef.current.stop();
+            if (audioContextRef.current) audioContextRef.current.close();
         };
     }, []);
 
-    // Update Audio Parameters based on Focus Score
+    // Logic: Update Volumes based on Score
     useEffect(() => {
-        if (!audioContextRef.current || !gainNodeRef.current || !filterNodeRef.current) return;
+        if (!bgGainRef.current || !fsGainRef.current || !audioContextRef.current) return;
 
         const ctx = audioContextRef.current;
-        const gain = gainNodeRef.current;
-        const filter = filterNodeRef.current;
+        const bgGain = bgGainRef.current;
+        const fsGain = fsGainRef.current;
+        const rampTime = 0.5;
 
-        // Focus Logic:
-        // Score 1.0 (Focused) -> Silence (Volume 0)
-        // Score 0.0 (Distracted) -> Max Volume (Volume 0.5)
+        // Condition 1: Score <= 0.6 -> Play Background
+        // Condition 2: Score == 0.0 -> Play Freesound (Exclusive?)
+        // Let's interpret "tamamen %0 olursa freesound yazan çalacak" as:
+        // if score == 0: Freesound ON, Background OFF
+        // if 0 < score <= 0.6: Background ON, Freesound OFF
+        // else (score > 0.6): Both OFF
 
-        const distractionLevel = 1.0 - focusScore;
+        let targetBgVol = 0;
+        let targetFsVol = 0;
 
-        // Volume ramp
-        const targetGain = distractionLevel * 0.4; // Max volume 0.4 to avoid clipping
-        const rampTime = 0.5; // Smooth transition
+        if (focusScore === 0) {
+            targetBgVol = 0;
+            targetFsVol = 1.0;
+        } else if (focusScore <= 0.6) {
+            targetBgVol = 1.0;
+            targetFsVol = 0;
+        } else {
+            // High focus
+            targetBgVol = 0;
+            targetFsVol = 0;
+        }
 
-        gain.gain.setTargetAtTime(targetGain, ctx.currentTime, rampTime);
-
-        // Filter Logic:
-        // Distracted -> Filter opens up slightly or stays deep? 
-        // User said "derin bir muzik". 
-        // Let's keep it lowpass but modulate frequency slightly.
-        // 0.0 -> 100Hz
-        // 1.0 (Distracted) -> 300Hz (bit more presence)
-
-        const targetFreq = 100 + (distractionLevel * 200);
-        filter.frequency.setTargetAtTime(targetFreq, ctx.currentTime, rampTime);
+        bgGain.gain.setTargetAtTime(targetBgVol, ctx.currentTime, rampTime);
+        fsGain.gain.setTargetAtTime(targetFsVol, ctx.currentTime, rampTime);
 
     }, [focusScore]);
 
-    return null; // Headless
+    return null;
 }
