@@ -133,12 +133,16 @@ export function calculateEmotion(keypoints: Keypoint[]): 'HAPPY' | 'SAD' | 'SURP
 
     // Smile: Corners are higher (smaller y) than mouth center
     // Threshold needs tuning.
-    if (mouthCenterY - cornersY > 0.02) {
+    // Lowered threshold to makes it easier to trigger
+    // Debug log
+    // console.log(`Emotion Debug -> MAR: ${MAR.toFixed(3)}, SmileDiff: ${(mouthCenterY - cornersY).toFixed(4)}, SadDiff: ${(cornersY - mouthCenterY).toFixed(4)}`);
+
+    if (mouthCenterY - cornersY > 0.005) {
         return 'HAPPY';
     }
 
     // Sad: Corners are lower (larger y) than mouth center
-    if (cornersY - mouthCenterY > 0.02) {
+    if (cornersY - mouthCenterY > 0.005) {
         return 'SAD';
     }
 

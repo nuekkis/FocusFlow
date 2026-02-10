@@ -45,10 +45,10 @@ export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideo
 
             // 4. Logic: Determine Focus
             const EAR_THRESHOLD = 0.15;
-            const YAW_THRESHOLD = 0.4;
+            const YAW_THRESHOLD = 0.3; // Tightened from 0.4 to catch looking away better
 
             // Debug logging
-            // console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}, Emotion: ${emotion}`);
+            console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}, Emotion: ${emotion}`);
 
             let targetScoreChange = 0;
             let currentStat = 'FOCUSED';
@@ -83,7 +83,8 @@ export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideo
             let finalChange = targetScoreChange;
             if (targetScoreChange < 0) {
                 // Slow down penalties (e.g., occlusion or brief look away)
-                finalChange *= 0.2; // 5x slower penalty
+                // Increased slightly to make it more responsive than before
+                finalChange *= 0.3; // 0.2 was too slow, 0.3 is a bit faster response
             } else {
                 // Normal recovery
                 finalChange *= 1.0;
