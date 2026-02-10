@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 const FocusHUD = dynamic(() => import('@/components/feedback/FocusHUD').then(mod => mod.FocusHUD), { ssr: false });
 import { FocusEffects } from '@/components/feedback/FocusEffects';
 import { LoginOverlay } from '@/components/feedback/LoginOverlay';
+import { FocusAudio } from '@/components/feedback/FocusAudio';
 
 export default function Home() {
   const [content, setContent] = useState("Start typing your masterpiece here... FocusFlow will handle the rest.");
@@ -18,10 +19,10 @@ export default function Home() {
       {/* Intro Overlay */}
       <LoginOverlay onStart={() => setIsStarted(true)} />
 
-      {/* Core Logic & Feedback System - Conditional Render to ensure Audio Context starts cleanly? 
-          Actually, AudioContext in FocusAudio inits on click. 
-          But conditional rendering ensures we don't try to play before user says go.
-      */}
+      {/* Audio Engine - Mounted early to catch interaction */}
+      <FocusAudio />
+
+      {/* Core Logic & Feedback System - Conditional Render */}
       {isStarted && <FocusEffects />}
       {isStarted && <FocusHUD />}
 

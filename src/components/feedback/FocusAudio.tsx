@@ -52,17 +52,29 @@ export function FocusAudio() {
 
                 // Load Files
                 const loadFile = async (url: string) => {
-                    const response = await fetch(url);
-                    const arrayBuffer = await response.arrayBuffer();
-                    return await ctx.decodeAudioData(arrayBuffer);
+                    console.log(`Attempting to load: ${url}`);
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            console.error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+                            throw new Error(`Fetch failed: ${response.status}`);
+                        }
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+                        console.log(`Successfully loaded and decoded: ${url}`);
+                        return audioBuffer;
+                    } catch (err) {
+                        console.error(`Error loading file ${url}:`, err);
+                        throw err;
+                    }
                 };
 
-                console.log("Loading Audio Files...");
+                console.log("Starting Audio Loading Sequence...");
                 const [bgBuffer, fsBuffer] = await Promise.all([
                     loadFile('/backgroundmusicforvideo-documentary-sad-sorrowful-music-479773.mp3'),
                     loadFile('/freesound_community-sad-movie-sounds_01-49494.mp3')
                 ]);
-                console.log("Audio Files Loaded");
+                console.log("All Audio Files Loaded Successfully");
 
                 backgroundBufferRef.current = bgBuffer;
                 freesoundBufferRef.current = fsBuffer;
@@ -147,6 +159,13 @@ export function FocusAudio() {
             targetBgVol = 0;
             targetFsVol = 0;
         }
+
+        if (audioContextRef.current?.state === 'suspended') {
+            console.log("AudioContext suspended in update loop, trying to resume...");
+            audioContextRef.current.resume();
+        }
+
+        console.log(`Audio Update -> Score: ${focusScore.toFixed(3)} | Targets - BG: ${targetBgVol}, FS: ${targetFsVol} | CTX State: ${audioContextRef.current?.state}`);
 
         bgGain.gain.setTargetAtTime(targetBgVol, ctx.currentTime, rampTime);
         fsGain.gain.setTargetAtTime(targetFsVol, ctx.currentTime, rampTime);
