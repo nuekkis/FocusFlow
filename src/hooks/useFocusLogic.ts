@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, RefObject } from 'react';
 import type { FaceMesh, Results } from '@mediapipe/face_mesh';
 import { useFocusStore } from '@/store/focusStore';
 import { createFaceMesh } from '@/lib/face-detection';
-import { calculateEAR, calculateYaw, calculateEmotion, Keypoint } from '@/lib/math/geometry';
+import { calculateEAR, calculateYaw, Keypoint } from '@/lib/math/geometry';
 import { LEFT_EYE, RIGHT_EYE } from '@/lib/math/indices';
 
 export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideoElement | null>) {
@@ -39,16 +39,12 @@ export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideo
             // 2. Calculate Pose (Yaw)
             const yaw = calculateYaw(keypoints);
 
-            // 3. Emotion Detection
-            const emotion = calculateEmotion(keypoints);
-            useFocusStore.getState().setEmotion(emotion);
-
             // 4. Logic: Determine Focus
             const EAR_THRESHOLD = 0.15;
             const YAW_THRESHOLD = 0.3; // Tightened from 0.4 to catch looking away better
 
             // Debug logging
-            console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}, Emotion: ${emotion}`);
+            console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}`);
 
             let targetScoreChange = 0;
             let currentStat = 'FOCUSED';
