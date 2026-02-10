@@ -40,14 +40,19 @@ export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideo
             const yaw = calculateYaw(keypoints);
 
             // 3. Logic: Determine Focus
-            const EAR_THRESHOLD = 0.25;
-            const YAW_THRESHOLD = 0.2;
+            const EAR_THRESHOLD = 0.15; // Relaxed from 0.25 to prevent false blink detection
+            const YAW_THRESHOLD = 0.4;  // Relaxed from 0.2 to allow more head movement
+
+            // Debug logging to help tune thresholds
+            console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}`);
 
             let scoreChange = 0;
             let newState = 'FOCUSED';
 
             // Eyes Closed?
             if (avgEar < EAR_THRESHOLD) {
+                // If closed for too long -> DROWSY
+                // For now, immediate penalty
                 scoreChange = -0.05;
                 newState = 'DROWSY';
             }
