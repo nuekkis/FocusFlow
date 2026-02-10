@@ -83,3 +83,64 @@ export function calculatePitch(keypoints: Keypoint[]): number {
     // Ratio
     return dNoseChin / dEyesNose;
 }
+
+// Estimate Emotion
+// Simple heuristics for Happy, Surprised, Sad, Neutral
+export function calculateEmotion(keypoints: Keypoint[]): 'HAPPY' | 'SAD' | 'SURPRISED' | 'NEUTRAL' {
+    // Indices (mapped from indices.ts for reference)
+    // 13 = Upper Lip Top
+    // 14 = Lower Lip Bottom
+    // 61 = Mouth Corner Left
+    // 291 = Mouth Corner Right
+    // 33 = Left Eye Inner
+    // 263 = Right Eye Inner
+    // 66 = Left Eyebrow Mid
+    // 296 = Right Eyebrow Mid
+
+    // We can just use the passed keypoints array directly if it's 468 length
+    // But calculateEmotion receives the *full* keypoints array? 
+    // Yes, useFocusLogic passes the mapped keypoints.
+
+    const upperLip = keypoints[13];
+    const lowerLip = keypoints[14];
+    const mouthLeft = keypoints[61];
+    const mouthRight = keypoints[291];
+    const nose = keypoints[1];
+
+    // 1. Calculate Mouth Aspect Ratio (MAR) for Surprise
+    // Vertical distance / Horizontal distance
+    const mouthHeight = euclideanDistance(upperLip, lowerLip);
+    const mouthWidth = euclideanDistance(mouthLeft, mouthRight);
+
+    // 2. Smile Detection
+    // Mouth corners are usually higher than lower lip or even upper lip when smiling
+    // But simpler: mouth width increases significantly?
+    // Let's use relative height of corners vs center of mouth.
+    const mouthCenterY = (upperLip.y + lowerLip.y) / 2;
+    const cornersY = (mouthLeft.y + mouthRight.y) / 2;
+    // Normalized by nose-chin distance to be scale invariant?
+    // Let's just check if corners are significantly above the center.
+    // Note: y increases downwards. So "above" means cornersY < mouthCenterY.
+
+    // 3. Eyebrow Raise for Surprise
+
+    // Heuristics
+    const MAR = mouthHeight / mouthWidth;
+
+    if (MAR > 0.5) {
+        return 'SURPRISED';
+    }
+
+    // Smile: Corners are higher (smaller y) than mouth center
+    // Threshold needs tuning.
+    if (mouthCenterY - cornersY > 0.02) {
+        return 'HAPPY';
+    }
+
+    // Sad: Corners are lower (larger y) than mouth center
+    if (cornersY - mouthCenterY > 0.02) {
+        return 'SAD';
+    }
+
+    return 'NEUTRAL';
+}

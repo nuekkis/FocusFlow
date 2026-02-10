@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, RefObject } from 'react';
 import type { FaceMesh, Results } from '@mediapipe/face_mesh';
 import { useFocusStore } from '@/store/focusStore';
 import { createFaceMesh } from '@/lib/face-detection';
-import { calculateEAR, calculateYaw, Keypoint } from '@/lib/math/geometry';
+import { calculateEAR, calculateYaw, calculateEmotion, Keypoint } from '@/lib/math/geometry';
 import { LEFT_EYE, RIGHT_EYE } from '@/lib/math/indices';
 
 export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideoElement | null>) {
@@ -39,43 +39,66 @@ export function useFocusLogic(videoReady: boolean, videoRef: RefObject<HTMLVideo
             // 2. Calculate Pose (Yaw)
             const yaw = calculateYaw(keypoints);
 
-            // 3. Logic: Determine Focus
-            const EAR_THRESHOLD = 0.15; // Relaxed from 0.25 to prevent false blink detection
-            const YAW_THRESHOLD = 0.4;  // Relaxed from 0.2 to allow more head movement
+            // 3. Emotion Detection
+            const emotion = calculateEmotion(keypoints);
+            useFocusStore.getState().setEmotion(emotion);
 
-            // Debug logging to help tune thresholds
-            console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}`);
+            // 4. Logic: Determine Focus
+            const EAR_THRESHOLD = 0.15;
+            const YAW_THRESHOLD = 0.4;
 
-            let scoreChange = 0;
-            let newState = 'FOCUSED';
+            // Debug logging
+            // console.log(`Focus Monitor -> EAR: ${avgEar.toFixed(3)}, Yaw: ${yaw.toFixed(3)}, Emotion: ${emotion}`);
+
+            let targetScoreChange = 0;
+            let currentStat = 'FOCUSED';
 
             // Eyes Closed?
             if (avgEar < EAR_THRESHOLD) {
-                // If closed for too long -> DROWSY
-                // For now, immediate penalty
-                scoreChange = -0.05;
-                newState = 'DROWSY';
+                targetScoreChange = -0.05;
+                currentStat = 'DROWSY';
             }
             // Looking away?
             else if (Math.abs(yaw) > YAW_THRESHOLD) {
-                scoreChange = -0.02;
-                newState = 'DISTRACTED';
+                targetScoreChange = -0.02;
+                currentStat = 'DISTRACTED';
             }
             // Good?
             else {
-                scoreChange = 0.01;
-                newState = 'FOCUSED';
+                targetScoreChange = 0.01;
+                currentStat = 'FOCUSED';
             }
 
-            // Update Store (Clamp 0-1)
-            const newScore = Math.min(Math.max(focusScore + scoreChange, 0), 1);
+            // SMOOTHING LOGIC
+            // Instead of instantaneous update, we move towards the target.
+            // If we are losing focus (target < current), we go slow (decay).
+            // If we are gaining focus, we can go a bit faster or similar.
+
+            // Actually, our logic above calculates a *Change* (delta).
+            // Let's refine: We define a "Target Score" based on state? 
+            // Or just apply the delta with smoothing?
+
+            // Let's stick to the delta approach but dampen the negative deltas.
+
+            let finalChange = targetScoreChange;
+            if (targetScoreChange < 0) {
+                // Slow down penalties (e.g., occlusion or brief look away)
+                finalChange *= 0.2; // 5x slower penalty
+            } else {
+                // Normal recovery
+                finalChange *= 1.0;
+            }
+
+            const newScore = Math.min(Math.max(focusScore + finalChange, 0), 1);
             setFocusScore(newScore);
-            setFocusState(newState as any);
+            setFocusState(currentStat as any);
 
         } else {
-            // No Face
+            // No Face - Decay slowly instead of instant penalty
+            // likely occlusion or brief loss of tracking
+            const decay = 0.002; // Very slow decay
+            setFocusScore(Math.max(focusScore - decay, 0));
             setFocusState('DISTRACTED');
-            setFocusScore(Math.max(focusScore - 0.01, 0));
         }
     }, [setFocusScore, setFocusState]);
 

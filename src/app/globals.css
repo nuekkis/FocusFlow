@@ -3,7 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  
+
   /* Focus Variables - Dynamic */
   --focus-blur: 0px;
   --focus-grayscale: 0%;
@@ -28,8 +28,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-  
+
   /* Apply dynamic focus effects */
   filter: blur(var(--focus-blur)) grayscale(var(--focus-grayscale)) contrast(var(--focus-contrast));
-  transition: filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: filter var(--focus-transition-duration, 0.5s) cubic-bezier(0.4, 0, 0.2, 1);
 }

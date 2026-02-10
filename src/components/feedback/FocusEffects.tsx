@@ -1,17 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFocusStore } from '@/store/focusStore';
 
 export function FocusEffects() {
     const { focusScore } = useFocusStore();
+    const prevScore = useRef(focusScore);
 
     useEffect(() => {
-        // Map score (0.0 - 1.0) to CSS values
-        // High score = 0 blur, 0 grayscale
-        // Low score = 10px blur, 100% grayscale
+        // Determine direction for transition duration
+        const isLosingFocus = focusScore < prevScore.current;
+        prevScore.current = focusScore;
 
-        // Invert score for "negative" effects
+        // User request: "bulaniktan netliğe geçen sürenin iki katı olacak" 
+        // Interpreted as: Blur (Focus Loss) should be slowly to avoid jarring effect.
+        // Recovery (Focus Gain) can be faster or standard.
+        // Setting Blur Duration to 2000ms (Slow)
+        // Setting Clear Duration to 800ms (Moderate/Fast)
+
+        const duration = isLosingFocus ? '2000ms' : '800ms';
+        document.documentElement.style.setProperty('--focus-transition-duration', duration);
+
+        // Map score (0.0 - 1.0) to CSS values
         const distractionLevel = 1.0 - focusScore;
 
         const blurAmount = `${distractionLevel * 8}px`; // Max 8px blur
@@ -24,5 +34,5 @@ export function FocusEffects() {
 
     }, [focusScore]);
 
-    return null; // Headless component
+    return null;
 }

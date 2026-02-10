@@ -13,7 +13,7 @@ export function FocusHUD() {
     // Initialize logic hook (it attaches to the videoRef automatically)
     useFocusLogic(isVideoReady, videoRef);
 
-    const { focusScore, focusState } = useFocusStore();
+    const { focusScore, focusState, emotion } = useFocusStore();
 
     return (
         <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
@@ -55,9 +55,16 @@ export function FocusHUD() {
                         <span className="text-lg font-bold font-mono">{(focusScore * 100).toFixed(0)}%</span>
                     </div>
                 </div>
-                <div className="mt-2 text-xs flex items-center gap-1.5 text-white/70">
-                    <Activity className="w-3 h-3" />
-                    Status: <span className="font-semibold text-white">{focusState}</span>
+                <div className="mt-2 text-xs flex items-center justify-between text-white/70 w-full">
+                    <div className="flex items-center gap-1.5">
+                        <Activity className="w-3 h-3" />
+                        <span className="font-semibold text-white">{focusState}</span>
+                    </div>
+                    {emotion !== 'NEUTRAL' && (
+                        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/90">
+                            {emotion}
+                        </span>
+                    )}
                 </div>
             </div>
 
